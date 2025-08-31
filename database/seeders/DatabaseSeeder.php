@@ -22,9 +22,9 @@ class DatabaseSeeder extends Seeder
             'password' => Hash::make('1234'),
         ]);
 
-        // Seed comprehensive location data
+        // Seed conservative location data (memory-efficient)
         $this->call([
-            ComprehensiveLocationSeeder::class,
+            ConservativeLocationSeeder::class,
         ]);
     }
 }

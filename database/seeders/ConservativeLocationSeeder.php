@@ -5,11 +5,11 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-class ComprehensiveLocationSeeder extends Seeder
+class ConservativeLocationSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->command->info('Starting comprehensive location seeding...');
+        $this->command->info('Starting conservative location seeding...');
         
         $this->seedCountries();
         $this->seedRegions();
@@ -17,7 +17,7 @@ class ComprehensiveLocationSeeder extends Seeder
         $this->seedCitiesMunicipalities();
         $this->seedBarangays();
         
-        $this->command->info('Comprehensive location seeding completed!');
+        $this->command->info('Conservative location seeding completed!');
     }
 
     private function seedCountries(): void
@@ -92,55 +92,53 @@ class ComprehensiveLocationSeeder extends Seeder
     {
         $this->command->info('Seeding provinces...');
         
-        // Get all regions
-        $regions = DB::table('ref_regions')->get();
+        // Process in chunks to avoid memory issues
+        $chunkSize = 100;
+        $totalProvinces = 0;
         
-        $provinces = [];
-        
-        foreach ($regions as $region) {
-            // Create sample provinces for each region
-            $provinceCount = rand(3, 8); // Random number of provinces per region
+        DB::table('ref_regions')->orderBy('id')->chunk($chunkSize, function ($regions) use (&$totalProvinces) {
+            $provinces = [];
             
-            for ($i = 1; $i <= $provinceCount; $i++) {
-                $provinces[] = [
-                    'province_code' => $region->region_code . '_PROV_' . $i,
-                    'name' => 'Province ' . $i . ' of ' . $region->name,
-                    'region_id' => $region->id,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
+            foreach ($regions as $region) {
+                // Create fewer provinces per region to reduce memory usage
+                $provinceCount = rand(1, 3); // Reduced from 3-8 to 1-3
+                
+                for ($i = 1; $i <= $provinceCount; $i++) {
+                    $provinces[] = [
+                        'province_code' => $region->region_code . '_PROV_' . $i,
+                        'name' => 'Province ' . $i . ' of ' . $region->name,
+                        'region_id' => $region->id,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
             }
-        }
+            
+            if (!empty($provinces)) {
+                DB::table('ref_provinces')->insert($provinces);
+                $totalProvinces += count($provinces);
+                $this->command->info("Processed chunk: " . count($provinces) . " provinces");
+            }
+        });
         
-        DB::table('ref_provinces')->insert($provinces);
-        $this->command->info('Provinces seeded: ' . count($provinces));
+        $this->command->info('Provinces seeded: ' . $totalProvinces);
     }
 
     private function seedCitiesMunicipalities(): void
     {
         $this->command->info('Seeding cities and municipalities...');
         
-        // Process provinces in chunks to avoid memory issues
+        // Process in chunks to avoid memory issues
         $chunkSize = 100;
-        $offset = 0;
-        $totalSeeded = 0;
+        $totalCitiesMunicipalities = 0;
         
-        do {
-            $provinces = DB::table('ref_provinces')
-                ->offset($offset)
-                ->limit($chunkSize)
-                ->get();
-            
-            if ($provinces->isEmpty()) {
-                break;
-            }
-            
+        DB::table('ref_provinces')->orderBy('id')->chunk($chunkSize, function ($provinces) use (&$totalCitiesMunicipalities) {
             $citiesMunicipalities = [];
             
             foreach ($provinces as $province) {
-                // Create sample cities and municipalities for each province
-                $cityCount = rand(2, 6); // Random number of cities per province
-                $municipalityCount = rand(1, 4); // Random number of municipalities per province
+                // Create fewer cities and municipalities per province
+                $cityCount = rand(1, 3); // Reduced from 2-6 to 1-3
+                $municipalityCount = rand(1, 2); // Reduced from 1-4 to 1-2
                 
                 // Add cities
                 for ($i = 1; $i <= $cityCount; $i++) {
@@ -173,45 +171,28 @@ class ComprehensiveLocationSeeder extends Seeder
             
             if (!empty($citiesMunicipalities)) {
                 DB::table('ref_cities_municipalities')->insert($citiesMunicipalities);
-                $totalSeeded += count($citiesMunicipalities);
-                $this->command->info("Processed chunk: " . count($citiesMunicipalities) . " cities/municipalities (Total: $totalSeeded)");
+                $totalCitiesMunicipalities += count($citiesMunicipalities);
+                $this->command->info("Processed chunk: " . count($citiesMunicipalities) . " cities/municipalities");
             }
-            
-            $offset += $chunkSize;
-            
-            // Clear memory
-            unset($citiesMunicipalities);
-            unset($provinces);
-            
-        } while (true);
+        });
         
-        $this->command->info('Cities and municipalities seeded: ' . $totalSeeded);
+        $this->command->info('Cities and municipalities seeded: ' . $totalCitiesMunicipalities);
     }
 
     private function seedBarangays(): void
     {
         $this->command->info('Seeding barangays...');
         
-        // Process cities/municipalities in chunks to avoid memory issues
+        // Process in chunks to avoid memory issues
         $chunkSize = 100;
-        $offset = 0;
-        $totalSeeded = 0;
+        $totalBarangays = 0;
         
-        do {
-            $citiesMunicipalities = DB::table('ref_cities_municipalities')
-                ->offset($offset)
-                ->limit($chunkSize)
-                ->get();
-            
-            if ($citiesMunicipalities->isEmpty()) {
-                break;
-            }
-            
+        DB::table('ref_cities_municipalities')->orderBy('id')->chunk($chunkSize, function ($citiesMunicipalities) use (&$totalBarangays) {
             $barangays = [];
             
             foreach ($citiesMunicipalities as $citymun) {
-                // Create sample barangays for each city/municipality
-                $barangayCount = rand(5, 15); // Random number of barangays per city/municipality
+                // Create fewer barangays per city/municipality
+                $barangayCount = rand(2, 5); // Reduced from 5-15 to 2-5
                 
                 for ($i = 1; $i <= $barangayCount; $i++) {
                     $barangays[] = [
@@ -228,18 +209,12 @@ class ComprehensiveLocationSeeder extends Seeder
             
             if (!empty($barangays)) {
                 DB::table('ref_barangays')->insert($barangays);
-                $totalSeeded += count($barangays);
-                $this->command->info("Processed chunk: " . count($barangays) . " barangays (Total: $totalSeeded)");
+                $totalBarangays += count($barangays);
+                $this->command->info("Processed chunk: " . count($barangays) . " barangays");
             }
-            
-            $offset += $chunkSize;
-            
-            // Clear memory
-            unset($barangays);
-            unset($citiesMunicipalities);
-            
-        } while (true);
+        });
         
-        $this->command->info('Barangays seeded: ' . $totalSeeded);
+        $this->command->info('Barangays seeded: ' . $totalBarangays);
     }
 }
+

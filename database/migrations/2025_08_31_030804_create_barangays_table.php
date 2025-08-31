@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('ref_barangays', function (Blueprint $table) {
             $table->id();
-            $table->string('barangay_code', 20)->unique();
+            $table->string('barangay_code', 35)->unique();
             $table->string('name', 150);
             $table->string('zip_code', 10)->nullable();
             $table->string('postal_code', 10)->nullable();

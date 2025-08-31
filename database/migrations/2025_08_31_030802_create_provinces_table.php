@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('ref_provinces', function (Blueprint $table) {
             $table->id();
-            $table->string('province_code', 20)->unique();
+            $table->string('province_code', 25)->unique();
             $table->string('name', 150);
             $table->foreignId('region_id')->constrained('ref_regions')->cascadeOnDelete();
             $table->timestamps();

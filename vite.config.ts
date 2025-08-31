@@ -5,6 +5,16 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+    base: process.env.NODE_ENV === 'production' ? './' : '/',
+    build: {
+        outDir: 'public/build',
+        assetsDir: 'assets',
+        rollupOptions: {
+            output: {
+                manualChunks: undefined,
+            },
+        },
+    },
     plugins: [
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.tsx'],

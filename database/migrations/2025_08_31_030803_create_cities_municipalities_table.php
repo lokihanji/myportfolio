@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('ref_cities_municipalities', function (Blueprint $table) {
             $table->id();
-            $table->string('citymun_code', 20)->unique();
+            $table->string('citymun_code', 30)->unique();
             $table->string('name', 150);
             $table->enum('type', ['City','Municipality'])->default('City');
             $table->string('zip_code', 10)->nullable();
