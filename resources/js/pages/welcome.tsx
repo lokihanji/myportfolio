@@ -1,6 +1,6 @@
 import { type SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/react';
-import { useRef, useState, useEffect, type MouseEvent } from 'react';   
+import { useRef, useState, useEffect, useMemo, useCallback, memo, type MouseEvent } from 'react';   
 
 interface PortfolioData {
     profile?: {
@@ -48,50 +48,147 @@ interface PortfolioData {
     content?: Record<string, { content: string }>;
 }
 
+// Memoized components for better performance
+const SkillCard = memo(({ skill }: { skill: any }) => (
+    <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700 hover:border-green-400 transition-all duration-300">
+        <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-green-400">{skill.name}</h3>
+            <span className="text-sm text-gray-400">{skill.category}</span>
+        </div>
+        <div className="w-full bg-gray-700 rounded-full h-2">
+            <div 
+                className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-1000 ease-out"
+                style={{ width: `${skill.proficiency}%` }}
+            ></div>
+        </div>
+        <div className="text-right mt-2">
+            <span className="text-sm text-gray-400">{skill.proficiency}%</span>
+        </div>
+    </div>
+));
+
+const ProjectCard = memo(({ project }: { project: any }) => (
+    <div className="bg-gray-800/50 rounded-lg overflow-hidden border border-gray-700 hover:border-green-400 transition-all duration-300 hover:transform hover:scale-105">
+        {project.image && (
+            <div className="h-48 bg-gray-700 flex items-center justify-center">
+                <img 
+                    src={project.image} 
+                    alt={project.title} 
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                />
+            </div>
+        )}
+        <div className="p-6">
+            <h3 className="text-xl font-semibold text-green-400 mb-2">{project.title}</h3>
+            <p className="text-gray-300 mb-4">{project.description}</p>
+            <div className="flex flex-wrap gap-2">
+                {project.technologies?.map((tech: string, techIndex: number) => (
+                    <span key={techIndex} className="px-3 py-1 bg-green-600/20 text-green-400 rounded-full text-sm">
+                        {tech}
+                    </span>
+                ))}
+            </div>
+        </div>
+    </div>
+));
+
+const ExperienceCard = memo(({ exp, formatDate }: { exp: any; formatDate: (date: string) => string }) => (
+    <div className="relative border-l-4 border-green-500 pl-8">
+        <div className="absolute -left-3 top-0 w-6 h-6 bg-green-500 rounded-full"></div>
+        <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
+            <h3 className="text-xl font-semibold text-green-400">{exp.title}</h3>
+            <h4 className="text-lg text-gray-300 mb-2">{exp.company}</h4>
+            <p className="text-gray-400 mb-4">
+                {formatDate(exp.start_date)} - {exp.is_current ? 'Present' : (exp.end_date ? formatDate(exp.end_date) : 'Present')}
+            </p>
+            <div className="text-gray-300 mb-4">
+                <p className="mb-3">{exp.description}</p>
+                {exp.achievements && (
+                    <ul className="list-disc list-inside space-y-2 ml-4">
+                        <li>{exp.achievements}</li>
+                    </ul>
+                )}
+            </div>
+        </div>
+    </div>
+));
+
+const ContactInfoItem = memo(({ info }: { info: any }) => (
+    <div className="flex items-center space-x-4">
+        <div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
+            <i className={`fas fa-${info.icon} text-green-400 text-xl`}></i>
+        </div>
+        <div>
+            <p className="text-gray-400 text-sm">{info.label}</p>
+            <p className="text-white font-medium">{info.value}</p>
+        </div>
+    </div>
+));
+
 export default function Welcome() {
     const { auth, profile, experiences, skills, projects, portfolioItems, contactInfo, content } = usePage<SharedData & PortfolioData>().props;
     const propertiesRef = useRef<HTMLDivElement>(null);
     
-    const scrollProperties = (direction: 'prev' | 'next') => {
+    // Memoize expensive computations
+    const memoizedProfile = useMemo(() => profile, [profile]);
+    const memoizedExperiences = useMemo(() => experiences, [experiences]);
+    const memoizedSkills = useMemo(() => skills, [skills]);
+    const memoizedProjects = useMemo(() => projects, [projects]);
+    const memoizedContactInfo = useMemo(() => contactInfo, [contactInfo]);
+    
+    const scrollProperties = useCallback((direction: 'prev' | 'next') => {
         const container = propertiesRef.current;
         if (!container) return;
         const amount = container.clientWidth * 0.9;
         container.scrollBy({ left: direction === 'next' ? amount : -amount, behavior: 'smooth' });
-    };
+    }, []);
 
     const [showBackToTop, setShowBackToTop] = useState(false);
+    
+    // Optimized intersection observer
     useEffect(() => {
         const sections = Array.from(document.querySelectorAll('section'));
         if (sections.length === 0) return;
-        const visible = new Set<Element>();
+        
         const observer = new IntersectionObserver(
             (entries) => {
+                let hasVisibleSection = false;
                 entries.forEach((entry) => {
                     if (entry.isIntersecting) {
-                        visible.add(entry.target);
-                    } else {
-                        visible.delete(entry.target);
+                        hasVisibleSection = true;
                     }
                 });
-                setShowBackToTop(visible.size > 0);
+                setShowBackToTop(hasVisibleSection);
             },
-            { threshold: 0.2 }
+            { 
+                threshold: 0.1,
+                rootMargin: '0px 0px -100px 0px'
+            }
         );
+        
         sections.forEach((sec) => observer.observe(sec));
         return () => observer.disconnect();
     }, []);
 
-    const handleNavClick = (event: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    const handleNavClick = useCallback((event: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
         event.preventDefault();
         const target = document.getElementById(targetId);
-        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, []);
 
-    // Helper function to format date
-    const formatDate = (dateString: string) => {
+    // Memoized date formatter
+    const formatDate = useCallback((dateString: string) => {
         const date = new Date(dateString);
         return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-    };
+    }, []);
+
+    // Memoized scroll to top handler
+    const scrollToTop = useCallback(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, []);
 
     return (
         <>
@@ -107,7 +204,7 @@ export default function Welcome() {
                     <div className="max-w-7xl mx-auto px-6 py-4">
                         <div className="flex items-center justify-between">
                             <Link href={route('login')} className="text-xl font-semibold text-green-400 hover:text-green-300 transition-colors cursor-pointer">
-                                {profile?.full_name}
+                                {memoizedProfile?.full_name}
                             </Link>
                             <div className="hidden md:flex items-center gap-8">
                                 <a href="#home" onClick={(e) => handleNavClick(e, 'home')} className="text-gray-300 hover:text-green-400 transition-all duration-300 ease-in-out hover:scale-105">Home</a>
@@ -132,13 +229,13 @@ export default function Welcome() {
                         <div className="flex flex-col lg:flex-row items-center gap-12">
                             <div className="flex-1 text-center lg:text-left">
                                 <h1 className="text-5xl lg:text-6xl font-bold mb-6">
-                                    Hi, I'm <span className="text-green-400">{profile?.full_name}</span>
+                                    Hi, I'm <span className="text-green-400">{memoizedProfile?.full_name}</span>
                                 </h1>
                                 <h2 className="text-2xl lg:text-3xl text-gray-300 mb-6">
-                                    {profile?.title}
+                                    {memoizedProfile?.title}
                                 </h2>
                                 <p className="text-lg text-gray-400 mb-8 leading-relaxed max-w-3xl">
-                                    {profile?.bio}
+                                    {memoizedProfile?.bio}
                                 </p>
                                 <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                                     <a href="#contact" className="inline-block bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-medium transition-colors">
@@ -152,7 +249,12 @@ export default function Welcome() {
                             <div className="flex-1 flex justify-center">
                                 <div className="relative">
                                     <div className="w-80 h-80 rounded-full bg-gradient-to-br from-green-600 to-blue-600 flex items-center justify-center text-white text-6xl">
-                                        <img src={profile?.avatar||'https://placehold.co/600x400'} alt={profile?.full_name} className="w-full h-full object-cover rounded-full" />
+                                        <img 
+                                            src={memoizedProfile?.avatar||'https://placehold.co/600x400'} 
+                                            alt={memoizedProfile?.full_name} 
+                                            className="w-full h-full object-cover rounded-full"
+                                            loading="lazy"
+                                        />
                                     </div>
                                     <div className="absolute inset-0 rounded-full border-4 border-green-400/20 animate-pulse"></div>
                                     <div className="absolute -top-4 -right-4 w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white text-2xl animate-bounce" style={{ animationDelay: '0.2s' }}>
@@ -181,7 +283,7 @@ export default function Welcome() {
                             <div>
                                 <h3 className="text-2xl font-semibold mb-6 text-green-400">Professional Journey</h3>
                                 <p className="text-lg text-gray-300 mb-6 leading-relaxed">
-                                    {profile?.bio || 'Currently working as a Full-Stack Developer at Davao del Sur State College, where I develop and maintain critical systems including e-FIMS (Financial Information Management System) and e-HRIS (Human Resource Information System) using Laravel PHP framework.'}
+                                    {memoizedProfile?.bio || 'Currently working as a Full-Stack Developer at Davao del Sur State College, where I develop and maintain critical systems including e-FIMS (Financial Information Management System) and e-HRIS (Human Resource Information System) using Laravel PHP framework.'}
                                 </p>
                                 <p className="text-lg text-gray-300 mb-6 leading-relaxed">
                                     My diverse background spans across multiple technical domains - from software and hardware 
@@ -195,15 +297,15 @@ export default function Welcome() {
                             </div>
                             <div className="grid grid-cols-3 gap-6">
                                 <div className="text-center">
-                                    <div className="text-4xl font-bold text-green-400 mb-2">{experiences?.length || 3}+</div>
+                                    <div className="text-4xl font-bold text-green-400 mb-2">{memoizedExperiences?.length || 3}+</div>
                                     <div className="text-gray-400">Years Experience</div>
                                 </div>
                                 <div className="text-center">
-                                    <div className="text-4xl font-bold text-green-400 mb-2">{projects?.length || 2}</div>
+                                    <div className="text-4xl font-bold text-green-400 mb-2">{memoizedProjects?.length || 2}</div>
                                     <div className="text-gray-400">Major Systems</div>
                                 </div>
                                 <div className="text-center">
-                                    <div className="text-4xl font-bold text-green-400 mb-2">{skills?.length || 10}+</div>
+                                    <div className="text-4xl font-bold text-green-400 mb-2">{memoizedSkills?.length || 10}+</div>
                                     <div className="text-gray-400">Technologies</div>
                                 </div>
                             </div>
@@ -216,25 +318,8 @@ export default function Welcome() {
                     <div className="max-w-7xl mx-auto">
                         <h2 className="text-4xl font-bold text-center mb-12">Professional Experience</h2>
                         <div className="space-y-8">
-                            {experiences?.map((exp, index) => (
-                                <div key={index} className="relative border-l-4 border-green-500 pl-8">
-                                <div className="absolute -left-3 top-0 w-6 h-6 bg-green-500 rounded-full"></div>
-                                <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-                                        <h3 className="text-xl font-semibold text-green-400">{exp.title}</h3>
-                                        <h4 className="text-lg text-gray-300 mb-2">{exp.company}</h4>
-                                        <p className="text-gray-400 mb-4">
-                                            {formatDate(exp.start_date)} - {exp.is_current ? 'Present' : (exp.end_date ? formatDate(exp.end_date) : 'Present')}
-                                        </p>
-                                    <div className="text-gray-300 mb-4">
-                                            <p className="mb-3">{exp.description}</p>
-                                            {exp.achievements && (
-                                        <ul className="list-disc list-inside space-y-2 ml-4">
-                                                    <li>{exp.achievements}</li>
-                                        </ul>
-                                            )}
-                                    </div>
-                                    </div>
-                                </div>
+                            {memoizedExperiences?.map((exp, index) => (
+                                <ExperienceCard key={index} exp={exp} formatDate={formatDate} />
                             ))}
                         </div>
                     </div>
@@ -245,23 +330,9 @@ export default function Welcome() {
                     <div className="max-w-7xl mx-auto">
                         <h2 className="text-4xl font-bold text-center mb-12">Skills & Technologies</h2>
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {skills?.map((skill, index) => (
-                                <div key={index} className="bg-gray-800/50 rounded-lg p-6 border border-gray-700 hover:border-green-400 transition-all duration-300">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-lg font-semibold text-green-400">{skill.name}</h3>
-                                        <span className="text-sm text-gray-400">{skill.category}</span>
-                                                </div>
-                                                <div className="w-full bg-gray-700 rounded-full h-2">
-                                        <div 
-                                            className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-1000 ease-out"
-                                            style={{ width: `${skill.proficiency}%` }}
-                                        ></div>
-                                    </div>
-                                    <div className="text-right mt-2">
-                                        <span className="text-sm text-gray-400">{skill.proficiency}%</span>
-                                                </div>
-                                            </div>
-                                        ))}
+                            {memoizedSkills?.map((skill, index) => (
+                                <SkillCard key={index} skill={skill} />
+                            ))}
                         </div>
                     </div>
                 </section>
@@ -271,25 +342,8 @@ export default function Welcome() {
                     <div className="max-w-7xl mx-auto">
                         <h2 className="text-4xl font-bold text-center mb-12">Featured Projects</h2>
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {projects?.map((project, index) => (
-                                <div key={index} className="bg-gray-800/50 rounded-lg overflow-hidden border border-gray-700 hover:border-green-400 transition-all duration-300 hover:transform hover:scale-105">
-                                    {project.image && (
-                                        <div className="h-48 bg-gray-700 flex items-center justify-center">
-                                            <img src={project.image} alt={project.title} className="w-full h-full object-cover" />
-                                </div>
-                                    )}
-                                    <div className="p-6">
-                                        <h3 className="text-xl font-semibold text-green-400 mb-2">{project.title}</h3>
-                                        <p className="text-gray-300 mb-4">{project.description}</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {project.technologies?.map((tech, techIndex) => (
-                                                <span key={techIndex} className="px-3 py-1 bg-green-600/20 text-green-400 rounded-full text-sm">
-                                                    {tech}
-                                                </span>
-                                            ))}
-                                </div>
-                            </div>
-                                </div>
+                            {memoizedProjects?.map((project, index) => (
+                                <ProjectCard key={index} project={project} />
                             ))}
                         </div>
                     </div>
@@ -303,20 +357,12 @@ export default function Welcome() {
                             <div>
                                 <h3 className="text-2xl font-semibold mb-6 text-green-400">Contact Information</h3>
                                 <div className="space-y-4">
-                                    {contactInfo?.map((info, index) => (
-                                        <div key={index} className="flex items-center space-x-4">
-                                            <div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
-                                                <i className={`fas fa-${info.icon} text-green-400 text-xl`}></i>
-                                        </div>
-                                        <div>
-                                                <p className="text-gray-400 text-sm">{info.label}</p>
-                                                <p className="text-white font-medium">{info.value}</p>
-                                    </div>
-                                        </div>
+                                    {memoizedContactInfo?.map((info, index) => (
+                                        <ContactInfoItem key={index} info={info} />
                                     ))}
                                 </div>
                             </div>
-                                    <div>
+                            <div>
                                 <h3 className="text-2xl font-semibold mb-6 text-green-400">Send a Message</h3>
                                 <form className="space-y-4">
                                     <input 
@@ -347,9 +393,9 @@ export default function Welcome() {
                 </section>
 
                 {/* Footer */}
-                  {showBackToTop && (
+                {showBackToTop && (
                     <button 
-                        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                        onClick={scrollToTop}
                         className="fixed bottom-8 right-8 w-12 h-12 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 z-40"
                     >
                         <i className="fas fa-arrow-up"></i>
@@ -359,7 +405,7 @@ export default function Welcome() {
                     <div className="max-w-7xl mx-auto">
                         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                             <div className="text-gray-400">
-                                <p>&copy; 2025 {profile?.full_name}. All rights reserved.</p>
+                                <p>&copy; 2025 {memoizedProfile?.full_name}. All rights reserved.</p>
                             </div>
                             <div className="flex gap-4">
                                 <a href="https://github.com/lokihanji" target="_blank" className="w-10 h-10 bg-gray-700 hover:bg-green-600 rounded-lg flex items-center justify-center text-gray-300 hover:text-white transition-colors">
